@@ -310,7 +310,7 @@ A aplicação utiliza o [nestjs-pino](https://github.com/iamolegga/nestjs-pino) 
 
 ## Usando com Postman
 
-- **Importe a collection no Postman para testar os endpoints**: [Download da Collection Postman](./postman/url-shortener-api.postman_collection.json)
+- **Importe a collection no Postman para testar os endpoints**: [Download da Collection Postman](./postman/shortener-url-api.postman_collection.json)
 
 
 1. **Crie um usuário:**  

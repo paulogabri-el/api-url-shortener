@@ -8,6 +8,7 @@ import fetch from 'node-fetch';
 import { parseISO } from 'date-fns';
 import { ShortUrl } from './entities/short-url.entity';
 import { th } from 'date-fns/locale';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class ShortUrlService {
@@ -16,43 +17,44 @@ export class ShortUrlService {
   constructor(
     @InjectRepository(ShortUrl)
     private readonly shortUrlRepo: Repository<ShortUrl>,
+    private readonly configService: ConfigService,
   ) { }
 
   async create(createShortUrlDto: CreateShortUrlDto, userId: number): Promise<ShortUrl> {
-  this.logger.log('Iniciando criação de URL encurtada', createShortUrlDto.originalUrl);
+    this.logger.log('Iniciando criação de URL encurtada', createShortUrlDto.originalUrl);
 
-  let originalUrl = createShortUrlDto.originalUrl.trim();
+    let originalUrl = createShortUrlDto.originalUrl.trim();
 
-  if (!originalUrl.startsWith('http://') && !originalUrl.startsWith('https://')) {
-    originalUrl = 'https://' + originalUrl;
-  }
-
-  try {
-    new URL(originalUrl);
-  } catch {
-    this.logger.warn('URL inválida informada', originalUrl);
-    throw new BadRequestException('A URL informada é inválida.');
-  }
-
-  const shortUrl = this.shortUrlRepo.create({
-    originalUrl,
-    shortCode: nanoid(6),
-    user: { id: userId },
-  });
-
-  if (createShortUrlDto.expiresAt) {
-    const parsed = parseISO(createShortUrlDto.expiresAt);
-    if (!isValid(parsed)) {
-      this.logger.warn('Data de expiração inválida', createShortUrlDto.expiresAt);
-      throw new BadRequestException('Data de expiração inválida. Use o formato YYYY-MM-DD.');
+    if (!originalUrl.startsWith('http://') && !originalUrl.startsWith('https://')) {
+      originalUrl = 'https://' + originalUrl;
     }
 
-    shortUrl.expiresAt = endOfDay(parsed);
-  }
+    try {
+      new URL(originalUrl);
+    } catch {
+      this.logger.warn('URL inválida informada', originalUrl);
+      throw new BadRequestException('A URL informada é inválida.');
+    }
 
-  this.logger.log('URL encurtada criada com sucesso', shortUrl.shortCode);
-  return await this.shortUrlRepo.save(shortUrl);
-}
+    const shortUrl = this.shortUrlRepo.create({
+      originalUrl,
+      shortCode: nanoid(6),
+      user: { id: userId },
+    });
+
+    if (createShortUrlDto.expiresAt) {
+      const parsed = parseISO(createShortUrlDto.expiresAt);
+      if (!isValid(parsed)) {
+        this.logger.warn('Data de expiração inválida', createShortUrlDto.expiresAt);
+        throw new BadRequestException('Data de expiração inválida. Use o formato YYYY-MM-DD.');
+      }
+
+      shortUrl.expiresAt = endOfDay(parsed);
+    }
+
+    this.logger.log('URL encurtada criada com sucesso', shortUrl.shortCode);
+    return await this.shortUrlRepo.save(shortUrl);
+  }
 
 
   async createAnonymous(originalUrl: string, expiresAt?: string): Promise<ShortUrl> {
@@ -79,13 +81,13 @@ export class ShortUrlService {
     return await this.shortUrlRepo.save(shortUrl);
   }
 
-
   async findAll(userId: number) {
     this.logger.log('Buscando todas as URLs encurtadas do usuário', userId);
+    const baseUrl = this.configService.get<string>('BASE_URL') || 'http://localhost';
+    const port = this.configService.get<string>('PORT') || '3000';
 
-    return this.shortUrlRepo
+    const urls = this.shortUrlRepo
       .createQueryBuilder('shortUrl')
-      .leftJoinAndSelect('shortUrl.clicks', 'click')
       .loadRelationCountAndMap('shortUrl.clickCount', 'shortUrl.clicks')
       .where('shortUrl.userId = :userId', { userId })
       .andWhere(
@@ -93,6 +95,11 @@ export class ShortUrlService {
         { now: new Date().toISOString() },
       )
       .getMany();
+
+    return (await urls).map((shortUrl) => ({
+      ...shortUrl,
+      redirectUrl: `${baseUrl}:${port}/${shortUrl.shortCode}`,
+    }));
   }
 
   async findByShortCode(shortCode: string): Promise<ShortUrl | null> {
@@ -109,7 +116,6 @@ export class ShortUrlService {
       )
       .getOne();
   }
-
 
   async getUrlByShortCode(code: string): Promise<string> {
     this.logger.log('Buscando URL original por código da URL encurtada', code);
