@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual } from 'typeorm';
 import { CreateShortUrlDto } from './dto/create-short-url.dto';
@@ -18,40 +18,41 @@ export class ShortUrlService {
     private readonly shortUrlRepo: Repository<ShortUrl>,
   ) { }
 
-  async create(createShortUrlDto: CreateShortUrlDto): Promise<ShortUrl> {
-    this.logger.log('Iniciando criação de URL encurtada', createShortUrlDto.originalUrl);
+  async create(createShortUrlDto: CreateShortUrlDto, userId: number): Promise<ShortUrl> {
+  this.logger.log('Iniciando criação de URL encurtada', createShortUrlDto.originalUrl);
 
-    let originalUrl = createShortUrlDto.originalUrl.trim();
+  let originalUrl = createShortUrlDto.originalUrl.trim();
 
-    if (!originalUrl.startsWith('http://') && !originalUrl.startsWith('https://')) {
-      originalUrl = 'https://' + originalUrl;
-    }
-
-    try {
-      new URL(originalUrl);
-    } catch {
-      this.logger.warn('URL inválida informada', originalUrl);
-      throw new BadRequestException('A URL informada é inválida.');
-    }
-
-    const shortUrl = this.shortUrlRepo.create({
-      originalUrl,
-      shortCode: nanoid(6),
-    });
-
-    if (createShortUrlDto.expiresAt) {
-      const parsed = parseISO(createShortUrlDto.expiresAt);
-      if (!isValid(parsed)) {
-        this.logger.warn('Data de expiração inválida', createShortUrlDto.expiresAt);
-        throw new BadRequestException('Data de expiração inválida. Use o formato YYYY-MM-DD.');
-      }
-
-      shortUrl.expiresAt = endOfDay(parsed);
-    }
-
-    this.logger.log('URL encurtada criada com sucesso', shortUrl.shortCode);
-    return await this.shortUrlRepo.save(shortUrl);
+  if (!originalUrl.startsWith('http://') && !originalUrl.startsWith('https://')) {
+    originalUrl = 'https://' + originalUrl;
   }
+
+  try {
+    new URL(originalUrl);
+  } catch {
+    this.logger.warn('URL inválida informada', originalUrl);
+    throw new BadRequestException('A URL informada é inválida.');
+  }
+
+  const shortUrl = this.shortUrlRepo.create({
+    originalUrl,
+    shortCode: nanoid(6),
+    user: { id: userId },
+  });
+
+  if (createShortUrlDto.expiresAt) {
+    const parsed = parseISO(createShortUrlDto.expiresAt);
+    if (!isValid(parsed)) {
+      this.logger.warn('Data de expiração inválida', createShortUrlDto.expiresAt);
+      throw new BadRequestException('Data de expiração inválida. Use o formato YYYY-MM-DD.');
+    }
+
+    shortUrl.expiresAt = endOfDay(parsed);
+  }
+
+  this.logger.log('URL encurtada criada com sucesso', shortUrl.shortCode);
+  return await this.shortUrlRepo.save(shortUrl);
+}
 
 
   async createAnonymous(originalUrl: string, expiresAt?: string): Promise<ShortUrl> {
@@ -89,7 +90,7 @@ export class ShortUrlService {
       .where('shortUrl.userId = :userId', { userId })
       .andWhere(
         '(shortUrl.expiresAt IS NULL OR shortUrl.expiresAt >= :now)',
-        { now: new Date() },
+        { now: new Date().toISOString() },
       )
       .getMany();
   }
@@ -123,27 +124,5 @@ export class ShortUrlService {
     }
 
     return 'URL Original: ' + url.originalUrl;
-  }
-
-  async remove(id: number, userId: number) {
-    this.logger.log(`Deletando URL encurtada com ID ${id} do usuário ${userId}`);
-
-    const url = await this.shortUrlRepo.findOne({
-      where: { id },
-      relations: ['user'],
-    });
-
-    if (!url) {
-      this.logger.warn(`URL com ID ${id} não encontrada.`);
-      throw new NotFoundException('URL não encontrada');
-    }
-
-    if (url.user.id !== userId) {
-      this.logger.warn(`Usuário ${userId} não tem permissão para deletar a URL com ID ${id}`);
-      throw new ForbiddenException('Acesso negado');
-    }
-
-    await this.shortUrlRepo.remove(url);
-    return 'URL deletada com sucesso!';
   }
 }

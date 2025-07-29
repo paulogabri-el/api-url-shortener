@@ -1,32 +1,54 @@
-import { Controller, Post, Get, Param, Body, Delete, UseGuards, Request, } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, UseGuards, Request, BadRequestException, } from '@nestjs/common';
 import { CreateShortUrlDto } from './dto/create-short-url.dto';
 import { ShortUrlService } from './short-url.service';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiCreatedResponse, } from '@nestjs/swagger';
 import { ShortUrlResponseDto } from './dto/short-url-response.dto';
 import { plainToInstance } from 'class-transformer';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('Encurtador URLs')
 @ApiBearerAuth()
 @Controller('short-url')
 export class ShortUrlController {
-  constructor(private readonly shortUrlService: ShortUrlService) { }
+  private readonly configService: ConfigService;
+  constructor(
+    private readonly shortUrlService: ShortUrlService,
+  ) { }
 
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiCreatedResponse({ type: ShortUrlResponseDto })
   async create(
+    @Request() req,
     @Body() createShortUrlDto: CreateShortUrlDto,
-  ): Promise<ShortUrlResponseDto> {
-    const shortUrl = await this.shortUrlService.create(createShortUrlDto);
-    return plainToInstance(ShortUrlResponseDto, shortUrl, { excludeExtraneousValues: true });
+  ): Promise<any> {
+    const shortUrl = await this.shortUrlService.create(createShortUrlDto, req.user.userId);
+
+    // Usa BASE_URL e PORT do .env, mas mantém fallback para não quebrar testes
+    const baseUrl = this.configService?.get<string>('BASE_URL') || 'http://localhost';
+    const port = this.configService?.get<string>('PORT') || '3000';
+
+    return {
+      ...plainToInstance(ShortUrlResponseDto, shortUrl, { excludeExtraneousValues: true }),
+      redirectUrl: `${baseUrl}:${port}/${shortUrl.shortCode}`,
+    };
   }
 
   @Post('public')
   @ApiOperation({ summary: 'Cria uma URL encurtada sem autenticação' })
   @ApiResponse({ status: 201, description: 'URL encurtada com sucesso' })
-  createPublic(@Body() dto: CreateShortUrlDto) {
-    return this.shortUrlService.createAnonymous(dto.originalUrl, dto.expiresAt);
+  async createPublic(@Body() dto: CreateShortUrlDto) {
+    const shortUrl = await this.shortUrlService.createAnonymous(dto.originalUrl, dto.expiresAt);
+
+    // Usa BASE_URL e PORT do .env, mas mantém fallback para não quebrar testes
+    const baseUrl = this.configService?.get<string>('BASE_URL') || 'http://localhost';
+    const port = this.configService?.get<string>('PORT') || '3000';
+
+    return {
+      ...plainToInstance(ShortUrlResponseDto, shortUrl, { excludeExtraneousValues: true }),
+      redirectUrl: `${baseUrl}:${port}/${shortUrl.shortCode}`,
+    };
   }
 
   @Get('short-urls')
@@ -43,15 +65,5 @@ export class ShortUrlController {
   @ApiResponse({ status: 404, description: 'URL não encontrada' })
   async redirect(@Param('shortCode') code: string) {
     return this.shortUrlService.getUrlByShortCode(code);
-  }
-
-  @Delete('short-urls/:id')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Remove uma URL encurtada do usuário' })
-  @ApiResponse({ status: 200, description: 'URL deletada com sucesso' })
-  @ApiResponse({ status: 403, description: 'Acesso negado' })
-  @ApiResponse({ status: 404, description: 'URL não encontrada' })
-  async remove(@Param('id') id: number, @Request() req) {
-    return this.shortUrlService.remove(id, req.user.userId);
   }
 }

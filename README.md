@@ -1,6 +1,6 @@
 # API URL Shortener
 
-API para encurtamento de URLs com autenticação JWT, analytics de cliques, gerenciamento de usuários e persistência de dados usando TypeORM e PostgreSQL.
+API para encurtamento de URLs com autenticação JWT, analytics de cliques, gerenciamento de usuários e persistência de dados usando TypeORM, PostgreSQL e logging estruturado com nestjs-pino.
 
 ---
 
@@ -15,22 +15,23 @@ API para encurtamento de URLs com autenticação JWT, analytics de cliques, gere
 - [Endpoints e Exemplos de Uso](#endpoints-e-exemplos-de-uso)
 - [Validações e Segurança](#validações-e-segurança)
 - [Banco de Dados e Estrutura](#banco-de-dados-e-estrutura)
+- [Logs com nestjs-pino](#logs-com-nestjs-pino)
 - [Pontos de Ajuste e Melhorias](#pontos-de-ajuste-e-melhorias)
 
 ---
 
 ## Pré-requisitos
 
-- [Docker](https://docs.docker.com/get-docker/) instalado
-- [Docker Compose](https://docs.docker.com/compose/install/) (já incluso no Docker Desktop)
-- (Opcional) [Postman](https://www.postman.com/) para testar a API
+- [Docker](https://docs.docker.com/get-docker/)
+- [Docker Compose](https://docs.docker.com/compose/install/) 
+- [Postman](https://www.postman.com/) para testar a API.
 
 ---
 
 ## Clonando o Projeto
 
 ```sh
-git clone <repo-url>
+git clone https://github.com/paulogabri-el/api-url-shortener.git
 cd api-url-shortener
 ```
 
@@ -40,7 +41,7 @@ cd api-url-shortener
 
 Você pode rodar tudo via Docker Compose, sem precisar instalar Node ou Postgres localmente.
 
-Se quiser rodar localmente, crie um arquivo `.env` na raiz com:
+Se quiser rodar localmente, crie um arquivo `.env` na raiz com (Informações do banco e demais configurações sugeridas e inseridas para a criação .yml para o Docker):
 
 ```
 DATABASE_HOST=localhost
@@ -48,7 +49,12 @@ DATABASE_PORT=5432
 DATABASE_USERNAME=postgres
 DATABASE_PASSWORD=postgres
 DATABASE_NAME=shortener
+
 JWT_SECRET=segredo_forte
+JWT_EXPIRES_IN=10m
+
+PORT=3000
+BASE_URL=http://localhost:3000
 ```
 
 ---
@@ -225,10 +231,6 @@ Os testes cobrem:
 #### `GET /short-url/:shortCode`
 - **Descrição:** Retorna a URL original associada ao shortCode.
 
-#### `DELETE /short-url/short-urls/:id`  
-**(Requer Bearer Token)**
-- **Descrição:** Remove uma URL encurtada do usuário autenticado.
-
 ---
 
 ### Redirecionamento
@@ -277,6 +279,21 @@ Os testes cobrem:
 
 ---
 
+## Logs com nestjs-pino
+
+A aplicação utiliza o [nestjs-pino](https://github.com/iamolegga/nestjs-pino) para logging estruturado e performático.
+
+- Todos os logs relevantes de criação de usuário, login, criação e remoção de URLs, erros e warnings são registrados.
+- Os logs são exibidos no terminal em formato colorido e legível, facilitando o acompanhamento em desenvolvimento e produção.
+- O logger é configurado globalmente no projeto e pode ser customizado conforme necessidade.
+- Exemplo de log:
+  ```
+  [12:34:56 +0000]  INFO  UsersService: Iniciando criação de usuário joao@email.com
+  [12:34:56 +0000]  WARN  UsersService: E-mail já cadastrado: joao@email.com
+  ```
+
+---
+
 ## Pontos de Ajuste e Melhorias
 
 - **Variáveis sensíveis:** Use variáveis de ambiente para JWT e banco.
@@ -287,10 +304,14 @@ Os testes cobrem:
 - **Permissões:** Apenas o dono pode deletar suas URLs.
 - **Swagger:** Disponível em `/api` para testar e visualizar todos os endpoints.
 - **Testes:** Cobrem todos os fluxos principais.
+- **Logs:** Logging estruturado com nestjs-pino para rastreabilidade e troubleshooting.
 
 ---
 
 ## Usando com Postman
+
+- **Importe a collection no Postman para testar os endpoints**:[📥 Download url-shortener.postman_collection.json](./postman/url-shortener.postman_collection.json)
+
 
 1. **Crie um usuário:**  
    - POST `/users` com nome, email e senha válidos.
@@ -310,4 +331,4 @@ Os testes cobrem:
 
 ---
 
-**Dúvidas ou sugestões?
+**Dúvidas ou sugestões?**

@@ -44,11 +44,12 @@ describe('ShortUrlService', () => {
       (repo.create as jest.Mock).mockReturnValue(entity);
       (repo.save as jest.Mock).mockResolvedValue(entity);
 
-      const result = await service.create(dto as any);
+      const result = await service.create(dto as any, 1);
 
       expect(repo.create).toHaveBeenCalledWith({
         originalUrl: 'https://google.com',
         shortCode: 'abcdef',
+        user: { id: 1 },
       });
       expect(repo.save).toHaveBeenCalledWith(entity);
       expect(result).toBe(entity);
@@ -56,7 +57,7 @@ describe('ShortUrlService', () => {
 
     it('should throw BadRequestException for invalid expiresAt', async () => {
       const dto = { originalUrl: 'https://google.com', expiresAt: 'invalid-date' };
-      await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto as any, 1)).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -127,33 +128,6 @@ describe('ShortUrlService', () => {
       (repo.findOne as jest.Mock).mockResolvedValue(undefined);
 
       await expect(service.getUrlByShortCode('notfound')).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe('remove', () => {
-    it('should remove url if found and user matches', async () => {
-      const url = { id: 1, user: { id: 2 } };
-      (repo.findOne as jest.Mock).mockResolvedValue(url);
-      (repo.remove as jest.Mock).mockResolvedValue(undefined);
-
-      const result = await service.remove(1, 2);
-
-      expect(repo.findOne).toHaveBeenCalledWith({ where: { id: 1 }, relations: ['user'] });
-      expect(repo.remove).toHaveBeenCalledWith(url);
-      expect(result).toBe('URL deletada com sucesso!');
-    });
-
-    it('should throw NotFoundException if url not found', async () => {
-      (repo.findOne as jest.Mock).mockResolvedValue(undefined);
-
-      await expect(service.remove(1, 2)).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw ForbiddenException if user does not match', async () => {
-      const url = { id: 1, user: { id: 3 } };
-      (repo.findOne as jest.Mock).mockResolvedValue(url);
-
-      await expect(service.remove(1, 2)).rejects.toThrow(ForbiddenException);
     });
   });
 });

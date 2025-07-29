@@ -13,8 +13,7 @@ describe('ShortUrlController', () => {
       create: jest.fn(),
       createAnonymous: jest.fn(),
       findAll: jest.fn(),
-      getUrlByShortCode: jest.fn(),
-      remove: jest.fn(),
+      getUrlByShortCode: jest.fn()
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -40,9 +39,10 @@ describe('ShortUrlController', () => {
       const shortUrl = { id: 1, originalUrl: dto.originalUrl, shortCode: 'abc123' };
       (service.create as jest.Mock).mockResolvedValue(shortUrl);
 
-      const result = await controller.create(dto);
+      const req = { user: { userId: 42 } };
+      const result = await controller.create(req, dto);
 
-      expect(service.create).toHaveBeenCalledWith(dto);
+      expect(service.create).toHaveBeenCalledWith(dto, 42);
       expect(result).toMatchObject({ id: 1 });
     });
   });
@@ -56,7 +56,12 @@ describe('ShortUrlController', () => {
       const result = await controller.createPublic(dto);
 
       expect(service.createAnonymous).toHaveBeenCalledWith(dto.originalUrl, undefined);
-      expect(result).toBe(created);
+      expect(result).toMatchObject({
+        id: 2,
+        originalUrl: 'https://test.com',
+        shortCode: 'xyz789',
+        redirectUrl: expect.stringContaining('xyz789'),
+      });
     });
   });
 
@@ -79,16 +84,6 @@ describe('ShortUrlController', () => {
       const result = await controller.redirect('abc123');
       expect(service.getUrlByShortCode).toHaveBeenCalledWith('abc123');
       expect(result).toBe('URL Original: https://test.com');
-    });
-  });
-
-  describe('remove', () => {
-    it('should call service.remove with id and userId', async () => {
-      (service.remove as jest.Mock).mockResolvedValue('URL deletada com sucesso!');
-      const req = { user: { userId: 42 } };
-      const result = await controller.remove(1, req);
-      expect(service.remove).toHaveBeenCalledWith(1, 42);
-      expect(result).toBe('URL deletada com sucesso!');
     });
   });
 });
